@@ -1,1083 +1,427 @@
 <template>
-    <div ref="tableComView" class="paper-set">
-        <!-- 筛选 -->
-        <ScreeningTop @propQueryFn="queryFn" @propResetFormFn="resetFormFn">
-            <!-- 筛选条件 -->
-            <el-form :inline="true" ref="propForm" :model="propForm" class="prop-form" size="small">
-                <el-form-item label="关键字" prop="search">
-                    <el-tooltip content="合同编号/物业地址/业主/客户/房产证号/手机号" placement="top">
-                        <el-input class="w200" v-model="propForm.search" placeholder="请输入" clearable></el-input>
-                    </el-tooltip>
-                </el-form-item>
-                <el-form-item label="签约日期" prop="dateMo">
-                    <el-date-picker v-model="propForm.dateMo" class="w330" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期">
-                    </el-date-picker>
-                </el-form-item>
-                <el-form-item label="交易流程" prop="time">
-                    <el-select v-model="propForm.time" class="w300">
-                        <el-option v-for="item in rules.time" :key="'jy'+item.id" :label="item.name" :value="item.id"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="贷款银行" prop="paper">
-                    <el-select v-model="propForm.paper" class="w262" :remote-method="remoteMethodFn" remote clearable filterable>
-                        <el-option v-for="item in rules.paper" :key="'bank'+item.bankId" :label="item.bankName" :value="item.id"></el-option>
-                    </el-select>
-                </el-form-item>
-                <div class="in-block">
-                    <el-form-item label="部门" prop="regionS" class="mr">
-                        <select-tree :data="DepList" :init="propForm.regionS" @checkCell="depHandleClick" @clear="clearDep" @search="searchDep"></select-tree>
-                    </el-form-item>
-                    <el-form-item prop="regionName">
-                        <el-select
-                        v-model="propForm.regionName"
-                        v-loadmore="moreEmploye"
-                        class="w100"
-                        @change="handleEmpNodeClick"
-                        clearable>
-                            <el-option
-                            v-for="item in EmployeList"
-                            :key="'bmName'+item.empId"
-                            :label="item.name"
-                            :value="item.empId"></el-option>
-                        </el-select>
-                    </el-form-item>
-                </div>
-                <el-form-item label="后期状态" prop="late" class="mr">
-                    <el-select v-model="propForm.late" class="w180">
-                        <el-option v-for="item in rules.late" :key="'state'+item.key" :label="item.label" :value="item.key"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item
-                    label="合作方式"
-                    prop="depAttr">
-                        <el-select
-                        v-model="propForm.depAttr"
-                        class="w100">
-                            <el-option
-                            v-for="item in rules.depAttr"
-                            :key="'depAttr'+item.key"
-                            :label="item.value"
-                            :value="item.key"></el-option>
-                        </el-select>
-                </el-form-item>
-                <el-form-item
-                    label="产权地址区域"
-                    prop="areaName">
-                        <el-select v-model="propForm.areaName" class="w134">
-                        <el-option v-for="(item,i) in rules.areaName"
-                        :key="'areaName'+i"
-                        :label="item"
-                        :value="item"></el-option>
-                    </el-select>
-                </el-form-item>
-            </el-form>
-        </ScreeningTop>
-        <!-- 列表 -->
-        <div class="paper-table-box">
-            <div class="paper-set-tit">
-                <!-- <div class="paper-tit-fl"><i class="iconfont icon-tubiao-11 mr-10 font-cl1"></i>数据列表</div> -->
+    <div class="view-container">
+        <!-- 接收操作切换 -->
+        <van-tabs v-model="activeTab" line-width="22px" color="#3EBA70">
+            <van-tab v-for="tab in tabs" :key="tab" :title="tab"></van-tab>
+        </van-tabs>
+        <div v-if="activeTab === 0" class="receive-list content">
+            <template v-if="dealList.length>0">
+                <ul v-for="(item,index) in dealList" :key="index">
+                    <li class="list-item"><span>步骤类型:</span><span>{{item.transactionStepsType}}</span><span :class="index===0||disableFn(item)?'grey':'green'" @click="followUp(item,index)">同上</span></li>
+                    <li class="list-item"><span>步骤名称:</span><span>{{item.transactionSteps}}</span></li>
+                    <li><span>结算百分比:</span><span>{{percentageFn(item.settlePercent)}}</span></li>
+                    <li><span>计划天数:</span><span>{{item.specifiedDay}}</span></li>
+                    <li>
+                        <van-field class="item" readonly v-model="item.roleName" :disabled="disableFn(item)" label="分配角色:" placeholder="请选择" @click="openFn(item,index)" is-link input-align="right"></van-field>
+                    </li>
+                    <li class="van-hairline--top">
+                        <van-field class="item" readonly v-model="item.personLiableName" :disabled="disableFn(item)" label="选责任人:" placeholder="请选择" @click="openFn(item,index,2)" is-link input-align="right"></van-field>
+                    </li>
+                </ul>
+            </template>
+            <div v-if="dealList.length===0&&loading" class="no-data">
+                <img :src="getImgUrl('no_data.png')" alt="">
+                <p>暂无数据</p>
             </div>
-            <el-table ref="tableCom" border :max-height="tableNumberCom" :data="tableData.list" v-loading="loadingList" class="paper-table">
-                <el-table-column :formatter="nullFormatterData" label="合同编号" align="center" min-width="120">
-                    <template slot-scope="scope">
-                        <span class="blue" @click="contractFn(scope.row)">{{scope.row.code}}</span>
-                    </template>
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="signDate" label="签约日期" align="center" min-width="90">
-                    <template slot-scope="scope">
-                        {{dateFormat(scope.row.signDate)}}
-                    </template>
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" label="后期状态" align="center" min-width="80">
-                    <template slot-scope="scope">
-                        {{statusLaterStageFn(scope.row.statusLaterStage.value)}}
-                    </template>
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="propertyAddr" label="物业地址" align="center" min-width="120">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="transFlowName" label="交易流程" align="center" min-width="260">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="propertyRightAddr" label="产权地址" align="center" min-width="120">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="propertyRightRegion" label="产权地址区域" align="center" min-width="120">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="owner" label="业主" align="center" min-width="90">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" prop="customer" label="客户" align="center" min-width="90">
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" label="成交经纪人" align="center" min-width="140">
-                    <template slot-scope="scope">
-                        {{agentFn(scope.row.dealagentStoreName,scope.row.dealAgentName)}}
-                    </template>
-                </el-table-column>
-                <el-table-column :formatter="nullFormatterData" label="操作" align="center" min-width="120">
-                    <template slot-scope="scope">
-                        <el-button v-if="power['sign-qh-rev-receive'].state" class="blue" type="text" @click="receiveFn(scope.row)">{{receiveComFn(scope.row.statusLaterStage.value,1)}}</el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
-        </div>
-        <!-- 分页 -->
-        <div class="pagination" v-if="tableData.total">
-            <el-pagination :current-page="tableData.pageNum" :page-size="tableData.pageSize" @current-change="currentChangeFn" layout=" total, prev, pager, next, jumper" :total="tableData.total">
-            </el-pagination>
-        </div>
-        <!-- 拒绝弹层 -->
-        <el-dialog :title="layer.tit" :close-on-click-modal="$tool.closeOnClickModal" :close-on-press-escape="$tool.closeOnClickModal" :visible.sync="layer.show" width="740px" :center="layer.center" class="layer-paper">
-            <div class="layer-invalid layer-refused">
-                <div class="input-box">
-                    <span class="cl-1 mr-10"><span class="mr-5 red">*</span>拒绝原因：</span>
-                    <div class="input">
-                        <el-input :autosize="textAutosize" type="textarea" resize="none" :maxlength="invalidMax" v-model="invalidInput" class="input">
-                        </el-input>
-                        <div class="text-absloute">{{invalidNumber}}/{{invalidMax}}</div>
-                    </div>
-                </div>
+            <div v-if="!loading" class="loading-box" >
+                <van-loading type="spinner" color="#3EBA70"  />
             </div>
-            <span slot="footer">
-                <el-button class="paper-btn" type size="small" @click="propCloseFn(0)" round>取消</el-button>
-                <el-button class="paper-btn paper-btn-blue" type="primary" size="small" @click="propCloseFn(1)" round>确定</el-button>
-            </span>
-        </el-dialog>
-        <!-- 接收弹层 -->
-        <el-dialog :close-on-click-modal="$tool.closeOnClickModal" :close-on-press-escape="$tool.closeOnClickModal" :title="receive.tit" :visible.sync="receive.show" width="1000px" :center="receive.center" class="layer-paper layer-scroll-auto"><!--  layer-scroll-auto -->
-            <LayerScrollAuto>
-                <div class="layer-receive-tab">
-                    <el-tabs v-model="activeName" class="contract-tab">
-                        <el-tab-pane label="交易流程指派">
-                            <el-table :data="dealTable" border v-loading="loadingdealTable" class="paper-table mt-20">
-                                <el-table-column :formatter="nullFormatterData" min-width="120px" prop="transactionStepsType" align="center" label="步骤类型">
-                                </el-table-column>
-                                <el-table-column :formatter="nullFormatterData" min-width="120px" prop="transactionSteps" align="center" label="步骤名称">
-                                </el-table-column>
-                                <el-table-column align="center" label="结算百分比">
-                                    <template slot-scope="scope">
-                                        <span>{{percentageFn(scope.row.settlePercent)}}</span>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column :formatter="nullFormatterData" prop="specifiedDay" align="center" label="计划天数">
-                                </el-table-column>
-                                <el-table-column align="center" min-width="185" label="分配角色">
-                                    <template slot-scope="scope">
-                                        <!-- @change="roleChangeFn(scope.$index,$event)"  -->
-                                        <el-select
-                                        v-model="scope.row.roleId"
-                                        placeholder="分配角色"
-                                        filterable
-                                        :loading="loading3"
-                                        :disabled="roleDisabledFn(scope.row)"
-                                        @change="roleChangeFn(scope.$index,$event)"
-                                        size="small"
-                                        class="w185"
-                                        :class="scope.row.classShow?'on':''">
-                                            <el-option
-                                            v-for="item in dealTableRule"
-                                            :key="'fp'+item.key + scope.$index"
-                                            :label="item.value"
-                                            :value="item.key"></el-option>
-                                        </el-select>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column align="center" min-width="185" label="责任人">
-                                    <template slot-scope="scope">
-                                        <el-select
-                                        v-model="scope.row.personLiableCode"
-                                        :value="scope.row.value"
-                                        :disabled="roleDisabledFn(scope.row)"
-                                        @visible-change="roleRemoteFn(scope.$index,scope.row.roleId,$event)"
-                                        placeholder="选择责任人"
-                                        filterable
-                                        :loading="loading4"
-                                        @change="roleRemoteChangeFn($event,scope.$index)"
-                                        size="small"
-                                        class="w185"
-                                        :class="scope.row.classShowCode?'on':''">
-                                            <el-option
-                                            v-for="item in scope.row.rules"
-                                            :key="'zrr'+item.empId + scope.$index"
-                                            :label="item.name"
-                                            :value="item.empId"></el-option>
-                                        </el-select>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column :formatter="nullFormatterData" align="center" label="操作">
-                                    <template slot-scope="scope">
-                                        <el-button :disabled="roleDisabledFn(scope.row)" :class="!roleDisabledFn(scope.row)?'blue':''" @click="dittoFn(scope.$index,scope.row)" type="text">同上</el-button>
-                                    </template>
-                                </el-table-column>
-                            </el-table>
-                            <div class="receive-label" v-if="receive.refuseReasons">
-                                <span class="cl-1 mr-10">拒绝原因：</span>
-                                <div class="receive-txt">{{receive.refuseReasons}}</div>
-                            </div>
-                        </el-tab-pane>
-                        <el-tab-pane label="合同资料库">
-                            <div class="contract-box">
-                                <template v-if="ContractDatabase.length > 0">
-                                    <div v-for="items in ContractDatabase" :key="items.kind">
-                                        <div class="contract-tit">{{titleFn(items.kind)}}</div>
-                                        <div class="contract-main" v-for="item in items.children" :key="item.title">
-                                            <p class="cl-1 mb-10"><span class="spna"><template v-if="item.isrequire">*</template></span>{{item.title}}</p>
-                                            <ul class="steps-img">
-                                                <el-tooltip class="item" effect="dark" :content="ies.name" placement="bottom" v-for="(ies,i) in item.value" :key="ies.name">
-                                                    <li @click="previewPhoto(item.value,i)">
-                                                        <div class="img">
-                                                            <uploadCell :type="stepsTypeImg(ies.path)"></uploadCell>
-                                                        </div>
-                                                        <p class="p">{{ies.name}}</p>
-                                                    </li>
-                                                </el-tooltip>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </template>
-                                <div class="no-data-table" v-else>暂无数据</div>
-                            </div>
-                        </el-tab-pane>
-                    </el-tabs>
-                    <!-- 预览 -->
-                    <preview :imgList="previewFiles" :start="previewIndex" v-if="preview" @close="preview=false"></preview>
-                </div>
-            </LayerScrollAuto>
-            <span slot="footer">
-                <el-button v-if="power['sign-qh-rev-receive'].state" class="paper-btn paper-btn-blue" type="primary" size="small" @click="saveBtnFn(receive.receive)" round>保存</el-button>
-                <el-button v-if="power['sign-qh-rev-receive'].state" class="paper-btn plain-btn-blue" size="small" v-show="receiveComFn(receive.receive,0)" @click="receiveBtnFn" round>接收</el-button>
-                <el-button v-if="power['sign-qh-rev-receive'].state" class="paper-btn plain-btn-red" size="small" @click="refusedFn" v-show="receiveComFn(receive.receive,0)" round>拒绝</el-button>
-            </span>
-        </el-dialog>
+        </div>
+        <div v-show="activeTab === 1" class="content">
+            <contractDataBase :preload='true' :fromPost="true"></contractDataBase>
+        </div>
+        <!-- 操作栏按钮 -->
+        <div class="btn" v-if="dealList.length>0">
+            <van-button plain type="primary" class="receive none-bg" @click="btnFn()" v-show="receiveComFn(transParams.statusLaterStage)" v-if="power['sign-qh-rev-receive'].state">接收</van-button>
+            <van-button type="primary" class="save" @click="btnFn(2,transParams.statusLaterStage)" v-if="power['sign-qh-rev-receive'].state">保存</van-button>
+        </div>
+        <popList class="search-bar" :list="postListArr" :activeId='popSelect.popSelectId' :state="popShow.popState" :showInput="true" :postFlag="true" v-if="popShow.popState" @chose="confirmChose" @close="popShow.popState=false" @searchList="search"></popList>
     </div>
 </template>
 
 <script>
-    import ScreeningTop from '@/components/ScreeningTop';
-    import { FILTER } from '@/assets/js/filter';
-    import { MIXINS } from '@/assets/js/mixins';
-    import { TOOL } from '@/assets/js/common';
-    import LayerScrollAuto from '@/components/LayerScrollAuto';
+import { Picker, Field, Popup, Loading } from 'vant'
+import popList from '@/components/popList.vue';
+import contractDataBase from '@/pages/contract/contractDataBase.vue';
+import { mapGetters } from 'vuex';
 
-    const RECEIVE = {
-        receive: 2, //接收
-        haveReceive: 3 //已接收
-    }
-
-    export default {
-        mixins: [FILTER, MIXINS],
-        data() {
-            return {
-                // 列表数据
-                tableData: {},
-                // 列表请求的页数
-                pageNum: 1,
-                pageSize: 10,
-                // 加载
-                loading: false,
-                loading3: false,
-                loading4: false,
-                loadingList: false,
-                loadingdealTable: false,
-                // 筛选条件
-                propForm: {
-                    region: '',
-                    regionS: '',
-                    regionName: '',
-                    regionNameS: '',
-                    search: '',
-                    paper: '',
-                    time: '',
-                    late: '',
-                    dateMo: '',
-                    depAttr:'',
-                    areaName:''
-                },
-                // 筛选选项
-                rules: {
-                    region: [{
-                        name: "全部",
-                        id: ""
-                    }],
-                    regionName: [{
-                        name: "全部",
-                        empId: ""
-                    }],
-                    paper: [{
-                        bankName: "全部",
-                        id: ""
-                    }],
-                    time: [{
-                        name: "全部",
-                        id: ""
-                    }],
-                    late: [{
-                        label: '全部',
-                        key: ''
-                    }],
-                    depAttr:[],
-                    areaName:[]
-                },
-                // 搜索变量
-                employees: {
-                    keyword: '',
-                    roleId: 0,
-                    index: 0,
-                },
-                // 搜索展示内容
-                restaurants: [{
-                    "value": "1111111",
-                }],
-                // 作废弹层输入框
-                invalidMax: 200,
-                invalidInput: '',
-                // 弹层属性
-                layer: {
-                    show: false,
-                },
-                receive: {
-                    show: false,
-                    tit: '接收',
-                    proWidth: '1000px',
-                    rabbet: true,
-                    center: false,
-                    footer: true
-                },
-                // 弹层切换展示那个
-                activeName: '0',
-                // 交易流程 表格数据
-                dealTable: [],
-                dealTableRule: [],
-                // 合同资料库
-                ContractDatabase: [],
-                // 权限
-                power:{
-                    // 'sign-qh-rev-query':{
-                    //     name:'查询',
-                    //     state:false
-                    // },
-                    // 'sign-qh-rev-receive':{
-                    //     name:'接收合同后期',
-                    //     state:false
-                    // },
-                    // 'sign-qh-rev-reject':{
-                    //     name:'拒绝接收',
-                    //     state:false,
-                    // },
-                    // 'sign-qh-rev-save':{
-                    //     name:'保存合同后期和修改责任人',
-                    //     state:false,
-                    // },
-                    // 'sign-qh-rev-opp':{
-                    //     name:'接收',
-                    //     state:false,
-                    // },
-                    'sign-qh-rev-receive':{
-                        name:'',
-                        state:false,
-                    },
-                    'sign-com-htdetail':{
-                        name:'合同详情',
-                        state:false,
-                    },
-                },
-                // 枚举数据
-                dictionary:{
-                    '520':'合同资料库标题',
-                    '53':'合作方式',
-                },
-                textAutosize:{ minRows: 7, maxRows: 7 }
+const RECEIVE = {
+    receive: 2, //接收
+    haveReceive: 3 //已接收
+}
+export default {
+    name: 'post-receive',
+    components: {
+        [Picker .name]: Picker,
+        [Field.name]: Field,
+        [Popup.name]: Popup,
+        popList,
+        contractDataBase,
+        [Loading.name]:Loading,
+    },
+    data() {
+        return {
+            tabs: ['交易流程指派','合同资料库'],
+            activeTab: '',
+            dealList: [],
+            dealListRole: [],
+            transParams: {
+                contractCode: '',
+                transFlowCode: '',
+                dealAgentId: '',
+                dealagentStoreId: '',
+                statusLaterStage: ''
+            },
+            popShow: {
+                popState: false
+            },
+            postListArr: [],
+            copyPostListArr: [],
+            popSelect: {
+                popSelectId: '',
+                popSelectType: '',
+                popSelectIndex: ''
+            },
+            loading: false
+        }
+    },
+    created() {
+        let query = this.$route.query
+        this.transParams = {
+            contractCode: query.id,
+            transFlowCode: query.transFlowCode,
+            dealAgentId: query.dealAgentId,
+            dealagentStoreId: query.dealagentStoreId,
+            statusLaterStage: query.statusLaterStage
+        }
+        this.getRoles()
+    },
+    methods: {
+        getImgUrl:function(url){
+            return require('@/assets/img/'+url);
+        },
+        receiveComFn(state) {
+            if (state == RECEIVE.receive) {
+                return true
+            } else {
+                return false
             }
         },
-        computed: {
-            invalidNumber() {
-                return this.invalidInput.length
-            },
-            // 城市
-            cityId() {
-                if (!!this.userMsg) {
-                    return this.userMsg.cityId
-                } else {
-                    return ''
-                }
-            },
+        search(res) {
+            if(res.keyword) {
+                let arr = this.copyPostListArr.filter(item=>{
+                    let str = item.name
+                    return str.includes(res.keyword)
+                })
+                this.postListArr = [...arr]
+            } else {
+                this.postListArr = [...this.copyPostListArr]
+            }
         },
-        methods: {
-            // 产权地址下拉数据
-            getAreaList:function () {
-                this.$ajax.get('/api/organize/currentdep/areaname')
-                .then(res =>{
-                    res = res.data
-                    if(res.status === 200){
-                        this.rules.areaName = res.data
-                    }
-                }).catch(err=>{
-                    this.errMeFn(err);
-                })
-            },
-            titleFn(val){
-                let arr = this.dictionary['520'];
-                for(let i=0;i<arr.length;i++){
-                    if(parseInt(val) === arr[i].key){
-                        return arr[i].value
-                    }
-                }
-            },
-            // 百分比转换
-            percentageFn(val){
-                if(val > 0){
-                    return `${val}%`
-                }else{
-                    return '--'
-                }
-            },
-            // 图片格式状态判定
-            stepsTypeImg(type) {
-                return this.$tool.get_suffix(type)
-            },
-            // 成功提示
-            successMeFn(e) {
-                this.$message({
-                    message: e,
-                    type: 'success'
-                });
-            },
-            // 错误提示
-            errMeFn(e) {
-                this.$message.error(e);
-            },
-            // 接收状态显示
-            receiveComFn(state, bol) {
-                if (bol) {
-                    if (state === RECEIVE.receive) {
-                        return '接收'
-                    } else {
-                        return '已接收'
-                    }
-                } else {
-                    if (state === RECEIVE.receive) {
-                        return true
-                    } else {
-                        return false
-                    }
-                }
-
-            },
-            // 是否禁用下拉
-            roleDisabledFn(data) {
-                let OPERATION = this.$tool.OPERATION;
-                if (!data.stepState) {
-                    return false
-                }
-                if (data.stepState.value === OPERATION.backlog || data.stepState.value === OPERATION.not) {
-                    return false
-                } else {
-                    return true
-                }
-            },
-            // 开始状态接收
-            statusLaterStageFn(state) {
-                if (state === RECEIVE.receive) {
-                    return '未开始'
-                } else {
-                    return '已开始'
-                }
-            },
-            // 经纪人
-            agentFn(s, t) {
-                if (!!s && !!t) {
-                    return `${s}-${t}`
-                } else if (!!s) {
-                    return s
-                } else if (!!t) {
-                    return t
-                } else {
-                    return '--'
-                }
-            },
-            // 时间处理
-            dateFormat(val) {
-                return TOOL.dateFormat(val);
-            },
-            // 分页
-            currentChangeFn(e) {
-                this.pageNum = e;
-                this.getListData('pagination');
-            },
-            // 接收
-            receiveFn(e) {
-                if(!this.power['sign-qh-rev-receive'].state){
-                    this.noPower(this.power['sign-qh-rev-receive'].name);
-                    return false
-                }
-                this.receive = {
-                    show: true,
-                    tit: '接收',
-                    proWidth: '1000px',
-                    rabbet: true,
-                    center: false,
-                    footer: true,
-                    receive: e.statusLaterStage.value,
-                    refuseReasons: e.refuseReasons,
-                    e,
-                }
-                // 获取角色
-                this.loading4 = true;
-                this.$ajax.get("/api/roles").then(res => {
-                    res = res.data;
-                    if (res.status === 200) {
-                        this.dealTableRule = [...res.data];
-                    }
-                    this.loading4 = false;
-                }).catch(err => {
-                    this.errMeFn(err);
-                    this.loading4 = false;
-                })
-                // 获取列表数据
-                this.loadingdealTable = true;
-                this.$ajax.get('/api/postSigning/clickReceive', {
-                    contractCode: e.id,
-                    transFlowCode: e.transFlowCode
-                }).then(res => {
-                    res = res.data
-                    if (res.status === 200) {
-                        let arr = [...res.data];
-                        arr.map(e => {
-                            e.rules = [{
-                                name: e.personLiableName,
-                                empId: e.personLiableCode,
-                            }]
-                            e.roleBool = true;
-                        })
-                        this.dealTable = arr;
-                        this.$nextTick(()=>{
-                            this.loadingdealTable = false;
-                        })
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                    this.$nextTick(()=>{
-                        this.loadingdealTable = false;
-                    });
-                })
-                // 合同资料库数据
-                this.$ajax.get("/api/postSigning/getDatabase", {
-                    contractCode: e.id
-                }).then(res => {
-                    res = res.data;
-                    if (res.status === 200) {
-                        let arr = [];
-                        if (!!res.data) {
-                            let j = JSON.parse(res.data.address)
-                            arr = this.recursiveFn([...j]);
-                        }
-                        this.ContractDatabase = arr;
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                })
-            },
-            recursiveFn(n, arr = []) {
-                if (n.length === 0) {
-                    return arr
-                }
-                let bool = n[0].kind;
-                let children = [];
-                let num = 0;
-                let arr2 = [...n];
-                arr2.map((e, i) => {
-                    if (e.kind === bool) {
-                        children.push(e);
-                        n.splice(i - num, 1);
-                        num++;
-                    }
-                })
-                arr.push({
-                    kind: bool,
-                    children,
-                })
-                return this.recursiveFn(n, arr)
-            },
-            // 分配角色改变时候 数据联动
-            roleChangeFn(i,e) {
-                this.loading4 = true;
-                this.$ajax.get('/api/employee/postsigning/duty',{
-                    roleId:e,
-                    empId:this.receive.e.dealAgentId,
-                    depId:this.receive.e.dealagentStoreId,
-                }).then(res=>{
-                    res = res.data;
-                    if(res.status === 200){
-                        this.dealTable[i].personLiableCode = "";
-                        this.dealTable[i].classShowCode =true;
-                        this.dealTable[i].rules = [...res.data];
-                        this.dealTable[i].personLiableName = '';
-                        this.dealTable[i].roleBool = false;
-                    }
-                    this.loading4 = false;
-                }).catch(err=>{
-                    this.errMeFn(err);
-                    this.loading4 = false;
-                })
-            },
-            roleRemoteChangeFn(e, i) {
-                let arr = this.dealTable[i];
-                arr.personLiableCode = e;
-                arr.classShowCode = false;
-                this.$set(this.dealTable, i, arr)
-            },
-            // 展示下拉列表的时候执行
-            roleRemoteFn(i,e,bool){
-                if(bool && !!e && this.dealTable[i].roleBool){
-                    this.loading4 = true;
-                    this.$ajax.get('/api/employee/postsigning/duty',{
-                        roleId:e,
-                        empId:this.receive.e.dealAgentId,
-                        depId:this.receive.e.dealagentStoreId,
-                    }).then(res=>{
-                        res = res.data;
-                        if(res.status === 200){
-                            this.dealTable[i].rules = [...res.data];
-                        }
-                        this.loading4 = false;
-                    }).catch(err=>{
-                        this.errMeFn(err);
-                        this.loading4 = false;
-                    })
-                }
-            },
-            roleRemoteMethodFn(query) {
-                this.employees.keyword = query;
-                this.getEmployeesFn();
-            },
-            // 下拉加载更多
-            loadMoreFn() {
-                this.dealTable[this.employees.index].rules.pageNum++;
-                this.getEmployeesFn(true);
-            },
-            getEmployeesFn(bool) {
-                if (!bool) {
-                    this.loading4 = true;
-                }
-                this.$ajax.get('/api/organize/employees/pages', {
-                    cityId: this.cityId,
-                    roleId: this.employees.roleId,
-                    keyword: this.employees.keyword,
-                    pageNum: this.dealTable[this.employees.index].rules.pageNum,
-                }).then(res => {
-                    res = res.data;
-                    if (res.status === 200) {
-                        let rul = this.dealTable[this.employees.index].rules;
-                        if (bool) {
-                            if (rul.hasNextPage) {
-                                this.dealTable[this.employees.index].rules = Object.assign(rul, {
-                                    list: [...rul.list, ...res.data.list],
-                                    pageNum: res.data.pageNum,
-                                    hasNextPage: res.data.hasNextPage,
-                                })
-                            }
-                        } else {
-                            this.dealTable[this.employees.index].rules = res.data;
-                        }
-                    }
-                    this.loading4 = false;
-                }).catch(err => {
-                    this.errMeFn(err);
-                    this.loading4 = false;
-                })
-            },
-            // 数据处理
-            empRulesList(data) {
-                if (!data.list) {
-                    return []
-                } else {
-                    return data.list
-                }
-            },
-            // 保存
-            saveBtnFn(state) {
-                if(!this.power['sign-qh-rev-receive'].state){
-                    this.noPower(this.power['sign-qh-rev-receive'].name);
-                    return false
-                }
-                let arr = [...this.dealTable];
-                let bool = true;
-                // console.log(arr)
-                arr.map((e,i) => {
-                    e.contractCode = this.receive.e.id;
-                    e.rules.map(i => {
-                        if (i.empId === e.personLiableCode) {
-                            e.personLiableName = i.name
-                        }
-                    })
-                    if (!e.personLiableName) {
-                        bool = false;
-                        if(state === RECEIVE.haveReceive){
-                            e.classShowCode =true;
-                            this.$set(this.dealTable,i,e)
-                        }
-                    }
-                })
-                if (state === RECEIVE.haveReceive && !bool) {
-                    this.errMeFn('数据不能为空');
-                    return false
-                }
-                this.$ajax.postJSON('/api/postSigning/saveStepFlow', arr).then(res => {
-                    res = res.data;
-                    if (res.status === 200) {
-                        this.successMeFn(res.message)
-                        this.receive.show = false;
-                        // 数据刷新
-                        this.getListData();
-                    } else {
-                        this.errMeFn(res.message);
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                })
-            },
-            // 接收
-            receiveBtnFn() {
-                if(!this.power['sign-qh-rev-receive'].state){
-                    this.noPower(this.power['sign-qh-rev-receive'].name);
-                    return false
-                }
-                let arr = [...this.dealTable];
-                let bool = true;
-                arr.map((e,i) => {
-                    e.contractCode = this.receive.e.id;
-                    e.rules.map(i => {
-                        if (i.empId === e.personLiableCode) {
-                            e.personLiableName = i.name
-                        }
-                    })
-                    if (!e.personLiableName) {
-                        bool = false;
-                        e.classShowCode =true;
-                        this.$set(this.dealTable,i,e);
-                    }
-                })
-                if (!bool) {
-                    this.errMeFn('请将交易步骤分配完，才能接收并开始办理后期');
-                } else {
-                    this.$ajax.postJSON('/api/postSigning/addStepFlow', arr).then(res => {
-                        res = res.data;
-                        if (res.status === 200) {
-                            this.successMeFn(res.message);
-                            this.receive.show = false;
-                            // 数据刷新
-                            this.getListData();
-                        } else {
-                            this.errMeFn(res.message);
-                        }
-                    }).catch(err => {
-                        this.errMeFn(err);
-                    })
-                }
-            },
-            // 拒绝后期
-            refusedFn() {
-                this.layer = {
-                    show: true,
-                    tit: '拒绝后期',
-                    rabbet: true,
-                    center: false
-                }
-                this.invalidInput = `${this.receive.refuseReasons}`;
-            },
-            // 拒绝后期 弹层事件
-            propCloseFn(bool) {
-                if (bool) {
-                    if(!this.power['sign-qh-rev-receive'].state){
-                        this.noPower(this.power['sign-qh-rev-receive'].name);
-                        return false
-                    }
-                    if (this.invalidInput.length < 1) {
-                        this.errMeFn('输入不能为空');
-                    } else {
-                        this.$ajax.post('/api/postSigning/refuseReceive', {
-                            contractCode: this.receive.e.id,
-                            refuseReasons: this.invalidInput
-                        }).then(res => {
-                            res = res.data;
-                            if (res.status === 200) {
-                                this.successMeFn(res.message);
-                                this.receive.show = false;
-                                this.layer.show = false;
-                                // 数据刷新
-                                this.getListData();
-                            } else {
-                                this.errMeFn(res.message);
-                            }
-                        }).catch(err => {
-                            this.errMeFn(err);
-                        })
-                    }
-                } else {
-                    this.layer.show = false
-                }
-            },
-            // 同上
-            dittoFn(i, data) {
-                if (!this.roleDisabledFn(data)) {
-                    if (i === 0) {
-                        this.errMeFn('本步骤没有上一步，请手动进行分配');
-                    } else {
-                        let arr = this.dealTable[i - 1];
-                        let roleId = arr.roleId;
-                        let personLiableCode = arr.personLiableCode;
-                        let rules = arr.rules;
-                        let obj = Object.assign(this.dealTable[i], {
-                            roleId,
-                            personLiableCode,
-                            rules
-                        })
-                      if(rules.length>0){
-                          obj.classShowCode=false
-                      }
-                        this.$set(this.dealTable, i, obj)
-                    }
-                }
-            },
-            // 合同编号
-            contractFn(value) {
-                if(!this.power['sign-com-htdetail'].state){
-                    this.noPower(this.power['sign-com-htdetail'].name);
-                    return false
-                }
-                this.setPath(this.getPath.concat({name:'合同详情'}));
-                this.$router.push({
-                    path: "/contractDetails",
-                    query: {
-                        id: value.id, //合同id
-                        code: value.code, //合同编号
-                        contType: value.tradeType.value //合同类型
-                    }
-                });
-            },
-            // 重置
-            resetFormFn() {
-                this.propForm.region='';
-                this.pageNum = 1;
-                this.$refs.propForm.resetFields();
-                // this.getListData();
-              this.EmployeList = []
-            },
-            // 查询
-            queryFn() {
-                this.pageNum = 1;
-                this.getListData('search');
-                // console.log('查询');
-            },
-            // 部门第二版 选择部门
-            depHandleClick(data){
-                this.propForm.region=data.depId
-                this.propForm.regionS=data.name
-                this.handleNodeClick(data);
-            },
-            // 部门第二版 删除
-            clearDep(){
-                this.propForm.region='';
-                this.propForm.regionName='';
-                this.clearSelect();
-                this.remoteMethod();
-            },
-            // 部门第二版 下拉隐藏时 刷新数据清除上一次数据
-            initDepList(val){
-                if(!val){
-                    this.remoteMethod()
-                }
-            },
-            // 部门搜索
-            searchDep:function (payload) {
-                /*this.DepList=payload.list
-                this.propForm.regionS = payload.depName*/
-            },
-            // 贷款银行搜索
-            remoteMethodFn(e) {
-                let t;
-                if (e === "全部") {
-                    t = '';
-                } else {
-                    t = e;
-                }
-                this.$ajax.get('/api/system/selectBankName', {
-                    keyWord: t
-                }).then(res => {
-                    res = res.data
-                    if (res.status === 200) {
-                        if (t === '' || t === "全部" || !t) {
-                            this.rules.paper = [{
-                                bankName: "全部",
-                                id: ""
-                            }, ...res.data]
-                        } else {
-                            this.rules.paper = res.data
-                        }
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                })
-            },
-            // 获取数据
-            getListData(type='init') {
-                this.loadingList = true;
-                let signDateSta = '';
-                let signDateEnd = '';
-                if (this.propForm.dateMo) {
-                    if (this.propForm.dateMo.length === 2) {
-                        signDateSta = TOOL.dateFormat(this.propForm.dateMo[0]);
-                        signDateEnd = TOOL.dateFormat(this.propForm.dateMo[1]);
-                    }
-                }
-                let param = {
-                    keyword: this.propForm.search,
-                    signDateSta,
-                    signDateEnd,
-                    transFlowCode: this.propForm.time,
-                    stagesBankCode: this.propForm.paper,
-                    dealDeptId: this.propForm.region,
-                    dealAgentId: this.propForm.regionName,
-                    statusLaterStage: this.propForm.late,
-                    pageNum: this.pageNum,
-                    pageSize: this.pageSize,
-                    depAttr:this.propForm.depAttr,
-                    areaName:this.propForm.areaName
-                }
-
-                //点击查询时，缓存筛选条件
-                if(type==='search'||type==='pagination'){
-                    sessionStorage.setItem('sessionQuery',JSON.stringify({
-                        path:'/postReceive',
-                        url:'/postSigning/getContract',
-                        query:Object.assign({},param,{empName:this.dep.empName},{depName:this.propForm.regionS}),
-                        methods:'get'
-                    }))
-                }
-
-                this.$ajax.get('/api/postSigning/getContract',param).then((res) => {
-                    res = res.data
-                    if (res.status === 200) {
-                        this.tableData = res.data;
-                    }
-                    this.$nextTick(()=>{
-                        this.loadingList = false;
-                    })
-                }).catch(err => {
-                    this.errMeFn(err);
-                    this.$nextTick(()=>{
-                        this.loadingList = false;
-                    })
-                })
-            },
-            // 交易流程获取数据
-            getTransactionProcess() {
-                this.$ajax.post('/api/flowmanage/selectFlowPageList', {
-                    cityId: this.cityId
-                }).then(res => {
-                    res = res.data
-                    if (res.status === 200) {
-                        this.rules.time = [{
-                            name: "全部",
-                            id: ""
-                        }, ...res.data];
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                })
-            },
-            // 后期状态
-            getLateState() {
-                this.$ajax.get("/api/dictionary/query", {
-                    parentId: 43
-                }).then(res => {
-                    res = res.data
-                    if (res.status === 200) {
-                        let arr = [];
-                        res.data.children.forEach(e => {
-                            if (e.key === RECEIVE.receive || e.key === RECEIVE.haveReceive) {
-                                arr.push({
-                                    key: e.key,
-                                    label: this.statusLaterStageFn(e.key)
-                                })
-                            }
-                        });
-                        this.rules.late = [{
-                            label: '全部',
-                            key: ''
-                        }, ...arr]
-                    }
-                }).catch(err => {
-                    this.errMeFn(err);
-                })
-            },
-        },
-        components: {
-            ScreeningTop,
-            LayerScrollAuto
-        },
-        mounted() {
-            this.$nextTick(()=>{
-                // 获取城市id
-                this.getAdmin();
-                // 枚举数据查询
-                this.getDictionary();
-                // 贷款银行
-                this.remoteMethodFn();
-                // // 部门搜索
-                // this.regionMethodFn('');
-                // 部门搜索
-                this.remoteMethod();
-                // 后期状态
-                this.getLateState();
-                // 产权地址区域
-                this.getAreaList()
-                let res=this.getDataList
-                if(res&&(res.route===this.$route.path)){
-                    this.tableData.list = res.data.list
-                    this.tableData.total = res.data.total
-                    let session = JSON.parse(sessionStorage.getItem('sessionQuery'))
-                    let query = session.query
-                    this.propForm = {
-                        region: query.dealDeptId,
-                        regionS: query.depName,
-                        regionName: query.dealAgentId,
-                        regionNameS: '',
-                        search: query.keyword,
-                        paper: query.stagesBankCode,
-                        time: query.transFlowCode,
-                        late: query.statusLaterStage,
-                        dateMo: query.signDateSta?[query.signDateSta,query.signDateEnd]:'',
-                        depAttr:query.depAttr,
-                        areaName:query.areaName
-                    }
-                    if(this.propForm.regionName){
-                        this.dep=Object.assign({},this.dep,{id:this.propForm.region,empId:this.propForm.regionName,empName:query.empName})
-                        this.EmployeList.unshift({
-                            empId:this.propForm.regionName,
-                            name:query.empName
-                        })
-                        this.getEmploye(this.propForm.region)
-                    }
-                    this.tableData.pageNum = query.pageNum
-                }else{
-                    // 列表数据
-                    this.getListData();
+        btnFn(type=1,state) {
+            let arr = [...this.dealList]
+            let bool = true
+            arr.map(e => {
+                e.contractCode = this.transParams.contractCode
+                if (!e.personLiableName) {
+                    bool = false
                 }
             })
+            let url = 'addStepFlow'
+            if(type === 1) {
+                if(!bool) {
+                    this.$toast('请将交易步骤分配完，才能接收并开始办理后期')
+                    return false
+                }
+            } else {
+                url = 'saveStepFlow'
+                if(state == RECEIVE.haveReceive && !bool) {
+                    this.$toast('数据不能为空')
+                    return false
+                }
+            }
+            this.$ajax.postJSON(`/api/postSigning/${url}`, arr).then(res => {
+                res = res.data
+                if (res.status === 200) {
+                    this.$toast(`后期${type===1?'接收':'保存'}成功~`)
+                    this.$router.go(-1)
+                }
+            }).catch(err => {
+                this.$toast(err)
+            })
         },
-        watch: {
-            dictionary(newData,oldData){
-                // 合作方式
-                this.rules.depAttr= [...newData[53]]
-            },
-            cityId() {
-                // 交易流程
-                this.getTransactionProcess();
+        followUp(e,i) {
+            if (!this.disableFn(e)) {
+                if (i === 0) {
+                    this.$toast('本步骤没有上一步，请手动进行分配')
+                } else {
+                    let arr = this.dealList[i - 1]
+                    let roleId = arr.roleId
+                    let roleName = arr.roleName
+                    let personLiableCode = arr.personLiableCode
+                    let personLiableName = arr.personLiableName
+                    let obj = Object.assign(this.dealList[i], {
+                        roleId,
+                        roleName,
+                        personLiableCode,
+                        personLiableName
+                    })
+                    this.$set(this.dealList, i, obj)
+                }
+            }
+        },
+        confirmChose(val) {
+            this.popShow.popState = false
+            if(val) {
+                let obj = this.dealList[this.popSelect.popSelectIndex]
+                if(this.popSelect.popSelectType === 1) {
+                    obj.roleId = val.key
+                    obj.roleName = val.value
+                    obj.personLiableCode = ''
+                    obj.personLiableName = ''
+                } else {
+                    obj.personLiableCode = val.empId
+                    obj.personLiableName = val.name
+                }
+            }
+        },
+        disableFn(e) {
+            // 2 已办理 4 不可办理
+            if (!e.stepState) {
+                return false
+            }
+            if (e.stepState.value === 2 || e.stepState.value === 4) {
+                return false
+            } else {
+                return true
+            }
+        },
+        getEmployeeFn(e) {
+            this.$ajax.get('/api/employee/postsigning/duty',{
+                roleId:e.roleId,
+                empId:this.transParams.dealAgentId,
+                depId:this.transParams.dealagentStoreId,
+            }).then(res=>{
+                res = res.data
+                if(res.status === 200){
+                    if(res.data.length) {
+                        let arr = [...res.data]
+                        arr.map(e=>{
+                            e.id = e.empId
+                        })
+                        this.postListArr = [...arr]
+                        this.copyPostListArr = [...arr]
+                        this.popShow.popState = true
+                    } else {
+                        this.$toast('分配的角色下无责任人')
+                    }
+                }
+            }).catch(err=>{
+                this.$toast(err)
+            })
+        },
+        openFn(e,i,type=1) {
+            if(!this.disableFn(e)){
+                this.popSelect = {
+                    popSelectId: type===1?e.roleId:e.personLiableCode||-99,
+                    popSelectType: type,
+                    popSelectIndex: i
+                }
+                if(type === 1) {
+                    this.postListArr = [...this.dealListRole]
+                    this.copyPostListArr = [...this.dealListRole]
+                    this.popShow.popState = true
+                } else {
+                    if(!!e.roleName) {
+                        this.getEmployeeFn(e)
+                    } else {
+                        this.$toast('请先分配角色~')
+                    }
+                }
+            }
+        },
+        percentageFn(val){
+            if(val > 0){
+                return `${val}%`
+            }else{
+                return '--'
+            }
+        },
+        getRoles() {
+            this.$ajax.get('/api/roles').then(res => {
+                res = res.data
+                if(res.status === 200) {
+                    let arr = [...res.data]
+                    arr.map(e=>{
+                        e.id = e.key
+                        e.name = e.value
+                    })
+                    this.dealListRole = [...arr]
+                }
+            }).catch(err => {
+                this.$toast(err)
+            })
+        },
+        getReceiveData() {
+            this.$ajax.get('/api/postSigning/clickReceive', {
+                contractCode: this.transParams.contractCode,
+                transFlowCode: this.transParams.transFlowCode
+            }).then(res => {
+                res = res.data
+                if(res.status === 200) {
+                    let arr = [...res.data];
+                    arr.map(e => {
+                        if(e.roleId == 0) {
+                            e.roleId = ""
+                        }
+                        this.dealListRole.find(item=>{
+                            if(e.roleId === item.key) {
+                                e.roleName = item.value
+                            }
+                        })
+                    })
+                    this.dealList = arr;
+                    this.loading = true
+                }
+            }).catch(err =>{
+                this.loading = true
+                this.$toast(err)
+            })
+        }
+    },
+    watch: {
+        dealListRole(val) {
+            if(val.length) {
+                this.getReceiveData()
+            }
+        }
+    },
+    computed: {
+        power() {
+            return this.getPowerCode
+        },
+        ...mapGetters([
+            'getPowerCode'
+        ]),
+    }
+}
+</script>
+
+<style scoped lang="less">
+@import '~@/assets/common.less';
+/deep/ .van-tab__text {
+    font-size: 16px;
+}
+.content {
+    position: absolute;
+    top: 105px;
+    left: 0;
+    right: 0;
+    bottom: 75px;
+    overflow: auto;
+    // -webkit-overflow-scrolling: touch;
+    background-color: @bg-grey;
+}
+.receive-list {
+    ul {
+        padding: 10px 10px 0;
+        border-radius: 2px;
+        li {
+            overflow: hidden;
+            background-color: white;
+            font-size: 14px;
+            padding: 0 15px;
+            span:first-child {
+                color: @text-grey-BBB;
+            }
+            span:nth-child(2) {
+                display: inline-block;
+                width: 60%;
+                word-wrap: break-word;
+                margin-left: 10px;
+            }
+            &.list-item span:first-child {
+                float: left;
+            }
+            &:first-child span:last-child {
+                float: right;
+            }
+            &:first-child {
+                padding-top: 15px;
+            }
+            .grey {
+                color: @text-grey-BBB;
+            }
+            .green {
+                color: @text-green;
+            }
+            .item {
+                background-color: white;
+                padding-left: 0;
+                padding-right: 0;
+                /deep/ .van-cell__title {
+                    color: @text-grey-BBB;
+                }
             }
         }
     }
-</script>
-
-<style lang="less" scoped>
-    @import "~@/assets/less/lsx.less";
-    /deep/.on .el-input__inner{
-        border-color: #FF3E3E;
+    .no-data {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%,-50%);
+        >img{
+            width: 200px;
+        }
+        >p{
+            text-align: center;
+            color: @text-grey-999;
+            margin-top: 20px;
+        }
     }
+    .loading-box {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(225, 225, 225, 225);
+        z-index: 999;
+        /deep/.van-loading{
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%);
+        }
+    }
+}
+.btn {
+    position: absolute;
+    bottom: 0;
+    height: 75px;
+    width: 100%;
+    padding: 0 14px;
+    box-sizing: border-box;
+    background-color: white;
+    display: flex;
+    align-items: center;
+    .receive {
+        flex: 1;
+        margin-right: 15px;
+    }
+    .save {
+        flex: 1;
+    }
+}
+.search-bar {
+    /deep/ .van-field {
+        background-color: #EBEBEB;
+        border-radius: 4px;
+        width: 70%;
+    }
+}
+.van-button.none-bg {
+    background-color: @text-white!important;
+    border: 1px solid #3DB96F!important;
+}
 </style>

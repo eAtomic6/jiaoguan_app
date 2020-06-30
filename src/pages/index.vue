@@ -1,467 +1,258 @@
 <template>
-  <div class="main">
-    <div class="nav">
-      <img :src="getImg('logo.png')" alt="">
-      <ul class="navbar" v-if="getUser&&getUser.user">
-        <li>{{getUser.user.cityName}}</li>
-        <li><span>{{getUser.user.depName}}-{{getUser.user.name}}</span></li>
-      </ul>
+    <div class="main">
+        <template v-if="$route.path!=='/choseCont'">
+            <searchBar :disabled="true" :ifInitParam="initSearchComponentParam" v-if="getUserMsg&&showSearch" @sendParam="getSearchParam" @toRoute="linkSearch"></searchBar>
+            <div class="search-bar-other"  v-if="!(showSearch||$route.path==='/search'||$route.path==='/chooseGuest')">
+                <p>
+                    <span><i class="icon iconfont iconjiantou1" @click.stop="goBack"></i></span>
+                    <span><i class="icon iconfont iconguanbi" @click.stop="closeWeb"></i></span>
+                </p>
+                <span>{{pageTitle}}</span>
+                <div v-if="($route.path==='/postProgressOpera'&&$route.query.title!=='查看'&&getReportTab!==1)||$route.path==='/postSteps'" @click="postSure">确认</div>
+            </div>
+            <div class="footer-tabs" v-if="showSearch">
+                <ul>
+                    <li v-for="item in footerTab" :key="item.id" @click="choseTab(item)" :class="{'active':footerTabActive===item.id}">
+                        <span><i class="icon iconfont" :class="item.icon"></i></span>
+                        <p>{{item.name}}</p>
+                    </li>
+                </ul>
+            </div>
+        </template>
+        <router-view v-if="getUserMsg"></router-view>
     </div>
-    <div class="container">
-      <div class="slider" :class="[collapse?'':'collapse-on']">
-        <el-menu
-          :default-active="activeIndex"
-          :unique-opened="true"
-          class="el-menu-demo"
-          :router="true"
-          :collapse="collapse"
-          :collapse-transition="false"
-          @select="handleSelect"
-          text-color="#333333"
-          active-text-color="#478DE3">
-          <el-submenu :index="item.path" :class="[collapse?'collapse-row':'',activeClass===item.id?'active':'']" v-for="item in views" :key="item.id" v-if="item.child.length>0">
-            <template slot="title">
-              <i class="iconfont" :class="item.icon"></i>
-              <span>{{item.name}}</span>
-            </template>
-            <el-menu-item :index="grade.path" v-for="grade in item.child" :key="grade.name">{{grade.name}}</el-menu-item>
-          </el-submenu>
-        </el-menu>
-        <p class="slider-bar-control" @click="toCollapse"></p>
-        <!--<ul>
-          <li v-for="item in views">
-            <span>{{item.name}}</span>
-            <ul>
-              <li v-for="grade in item.child" @click="handleSelect(grade)">{{grade.name}}</li>
-            </ul>
-          </li>
-        </ul>-->
-      </div>
-      <div class="page-view">
-        <div class="page-view-index">
-          <ul>
-            <li v-for="(item,index) in Index" :key="index" @click="toLink(item,index)">{{item.name}}</li>
-          </ul>
-          <p class="operation" @click="goBack" v-if="Index.length>2&&$route.path!=='/routingRemitDetail' && $route.path!=='/storePage' && $route.path!=='/detailIntention'&& $route.path!=='/contractDetails'">
-            <i class="iconfont icon-fanhui"></i>
-            <span>返回</span>
-          </p>
-          <!--<p style="position: absolute;top:50%;left:50%;transform:translate(-50%,-50%);cursor: pointer">
-            <span @click="logout(1)">退出登录</span>
-            <span @click="logout(2)">登录</span>
-          </p>-->
-        </div>
-        <div class="page-view-content">
-          <router-view class="router-view"></router-view>
-        </div>
-      </div>
-    </div>
-  </div>
 </template>
 
 <script>
-  import index from "../router";
-  import { mapMutations,mapGetters } from 'vuex'
+import searchBar from '@/components/searchBar.vue';
+import {mapMutations,mapGetters} from 'vuex';
+import {POWER} from "../assets/js/common";
 
-  export default {
+export default {
     name: "index",
-    data() {
-      return {
-        activeIndex: '',
-        views:this.$tool.pathList.map(item=>Object.assign({},item)),
-        Index:[],
-        back:false,
-        collapse:true,
-        activeClass:''
-      }
+    components:{
+        searchBar
     },
-    created(){
-      this.Index=this.getPath
-      this.activeIndex = this.Index.length>2?this.Index[1].path.split('/')[1]:''
-      /*this.$ajax.get('/api/me').then(res=>{
-        res=res.data
-        if(res.status===200){
-          // debugger
-          let arr=res.data.privileges
-          this.$store.commit('setUser',res.data)
-          // console.log(this.$store.state.user.privileges)
-          this.views.forEach((item,index)=>{
-            let sliders=[]
-            item.child.forEach(tip=>{
-              if(arr.indexOf(tip.code)>-1){
-                sliders.push(tip)
-              }
-            })
-            item.child=sliders
-          })
+    data() {
+        return {
+            userId: '',
+            code: {},
+            show: false,
+            pageTitle: '',
+            footerTabActive:1,
+            footerTab:[
+                {id:1,name:'合同',icon:'iconhetong',path:'contractHomePage'},
+                {id:2,name:'财务',icon:'iconcaiwu',path:'bill'},
+                {id:3,name:'后期',icon:'iconhouqi',path:'postIndex'}
+            ],
+            initSearchComponentParam:'',//是否初始化筛选组件
+            power:JSON.parse(JSON.stringify(POWER))
         }
-      })*/
-      // console.log(this.getUser)
-      let arr=this.getUser?this.getUser.privileges:[]
-      this.views.forEach((item,index)=>{
-        let sliders=[]
-        item.child.forEach(tip=>{
-          if(arr.indexOf(tip.code)>-1){
-            sliders.push(tip)
-          }
-        })
-        item.child=sliders
-      })
     },
     beforeRouteEnter(to,from,next){
-      next(vm=>{
-        if(to.path==='/login'){
-          vm.Index=[]
-        }
-      })
+        next(vm=>{
+            if(to.path==='/contractHomePage'){
+                vm.footerTabActive=1
+            }else if(to.path==='/bill'){
+                vm.footerTabActive=2
+            }else{
+                vm.footerTabActive=3
+            }
+            if(to.meta){
+                vm.pageTitle=to.query.title||to.meta.title
+            }else{
+                vm.pageTitle=''
+            }
+        });
     },
     beforeRouteUpdate(to,from,next){
-      if(to.path!=='/login'){
-        let arr=this.getUser.privileges
-        this.views=this.$tool.pathList.map(item=>Object.assign({},item))
-
-        this.views.forEach((item,index)=>{
-          let sliders=[]
-          item.child.forEach(tip=>{
-            if(arr.indexOf(tip.code)>-1){
-              sliders.push(tip)
+        if(to.path==='/contractHomePage'){
+            this.footerTabActive=1
+        }else if(to.path==='/bill'){
+            this.footerTabActive=2
+        }else{
+            this.footerTabActive=3
+        }
+        if(to.meta){
+            this.pageTitle=to.query.title||to.meta.title
+        }else{
+            this.pageTitle=''
+        }
+        if(['/contractHomePage','/bill','/postIndex'].includes(to.path)) {
+            this.setSearchKey('')
+        }
+        next();
+    },
+    created() {
+        let param = this.$route.query
+        // this.setPath([])
+        if (param.newToken) {
+            document.cookie = `ERP-Test=${this.$route.query.newToken}`;
+        } else if (param.empcode) {
+            for (let item in param) {
+                if (item === 'empcode') {
+                    param[item] = parseInt(param[item])
+                }
             }
-          })
-          item.child=sliders
-        })
-        this.Index=this.getPath
-        this.activeIndex = this.Index[1].path.split('/')[1]
-      }else {
-        let arr=[]
-        this.views=this.$tool.pathList.map(item=>Object.assign({},item))
-
-        this.views.forEach((item,index)=>{
-          let sliders=[]
-          item.child.forEach(tip=>{
-            if(arr.indexOf(tip.code)>-1){
-              sliders.push(tip)
-            }
-          })
-          item.child=sliders
-        })
-        this.Index=[]
-        // this.activeIndex = this.Index[1].path.split('/')[1]
-      }
-      next()
+            this.code = Object.assign({}, param)
+        }
+        // console.log(this.code,param)
+        this.login()
     },
     methods: {
-      getImg:function (url) {
-        return require(`@/assets/img/${url}`)
-      },
-      logout:function (type) {
-        // console.log(this.getUser)
-        if(type===1){
-          this.$ajax.post('/api/logout').then(res=>{
+        linkSearch:function(){
             this.$router.push({
-              path:'login'
+                path:'/search'
             })
-          })
-        }else {
-          this.logout(1)
-          this.$router.push({
-            path:'login'
-          })
-        }
-      },
-      handleSelect(key, keyPath) {
-        let tip = parseInt(keyPath[0])
-        this.activeClass=tip
-        /*this.Index = []
-        keyPath.forEach(item=>{
-          var myRe = new RegExp(`"name":"([^"]*?)","path":"${item.replace('?','\\?')}"`)
-          // console.log(myRe)
-          var myArray = myRe.exec(JSON.stringify(this.views));
-          // console.log(myArray)
-          this.Index.push(myArray[1])
-          this.setPath(this.Index)
-        })*/
-      },
-      toCollapse:function () {
-        this.collapse=!this.collapse
-        this.setCollapse(this.collapse)
-      },
-      toLink:function (item,index) {
-        if(index<2){
-          this.$router.push({
-            path:item.path
-          })
-        }
-      },
-      goBack:function () {
-        // this.setPath(localStorage.getItem('router').split(',').substring(0,2))
-        if(this.$route.path==="/extendParams"){
-          let backMsg = {
-            type:2
-          }
-          localStorage.setItem("backMsg", JSON.stringify(backMsg));
-        }
-        this.$router.go(-1)
-      },
-      ...mapMutations([
-        'setPath',
-        'setCollapse',
-        'setUser'
-      ])
+        },
+        choseTab:function(item){
+            this.footerTabActive=item.id
+            this.$router.replace({
+                path:item.path
+            })
+        },
+        goBack:function(){
+            let arr = ['/contractHomePage','/bill','/postIndex','/addContract']
+            if(arr.includes(this.$route.path)){
+                if(this.$route.query.title==="合同编辑"){
+                    this.$router.go(-1)
+                }else{
+                    // Android
+                    document.location = "js://close";
+                    //IOS
+                    window.webkit.messageHandlers.close.postMessage("");
+                }
+            }else{
+                if(this.$route.path==='/contractDataBase'){
+                    this.$EventBus.$emit('showDialog')
+                }else{
+                    this.$router.go(-1)
+                }
+            }
+        },
+        closeWeb(){
+            // Android
+            document.location = "js://close";
+            //IOS
+            window.webkit.messageHandlers.close.postMessage("");
+        },
+        //EventBus传递顶部筛选选择条件
+        getSearchParam:function(res){
+            this.$EventBus.$emit('getSearchBar',res)
+        },
+        login: function () {
+            this.$set(this.code,'platForm',1)
+            this.$ajax.post('/api/verify', this.code).then(res => {
+                res = res.data
+                if (res.status === 200) {
+                    this.$ajax.get('/api/me', {time: new Date()}).then(res => {
+                        res = res.data
+                        if (res.status === 200) {
+                            this.setUserMsg(res.data)
+                            let arr = res.data.privileges
+                            if(arr.length>0){
+                                for (let cell in this.power){
+                                    if(arr.includes(cell)){
+                                        this.power[cell].state=true
+                                    }
+                                }
+                                this.setPowerCode(this.power)
+                            }else{
+                                this.$toast('无任何权限')
+                            }
+                        }
+                    })
+                }
+            }).catch(error => {
+                this.$toast(error)
+            })
+        },
+        postSure() {
+            let str = 'submitFn'
+            if(this.$route.path === '/postSteps') {
+                str = 'btnSureFn'
+            }
+            this.$EventBus.$emit(str)
+        },
+        ...mapMutations(['setUserMsg','setPowerCode','setSearchKey','setDataRange'])
     },
     computed:{
-      ...mapGetters([
-        'getPath',
-        'getUser',
-        'getLoading'
-      ])
+        showSearch:function () {
+            return ['/contractHomePage','/postIndex','/bill'].includes(this.$route.path)
+        },
+        ...mapGetters(['getEntry','getUserMsg','getReportTab'])
     },
     watch:{
-      getUser:function (val) {
-        let arr=val.privileges
-        this.views=this.$tool.pathList.map(item=>Object.assign({},item))
-
-        this.views.forEach((item,index)=>{
-          let sliders=[]
-          item.child.forEach(tip=>{
-            if(arr.indexOf(tip.code)>-1){
-              sliders.push(tip)
-            }
-          })
-          item.child=sliders
-        })
-      },
-      getPath:function(val){
-        this.Index=val
-      }
+        getEntry:function (val) {
+            this.initSearchComponentParam=`${val.pageType}-${val.activeTab}`
+        }
     }
-  }
+}
 </script>
 
 <style scoped lang="less">
-  @import "~@/assets/common.less";
-  /deep/ .collapse-row{
-    &:first-of-type{
-      padding-top: 20px;
+    @import "@/assets/common.less";
+    .main{
+        height: calc(100%);
     }
-    padding-top: 30px;
-    &.active{
-      .el-submenu__title{
-        >i{
-          color: #478DE3;
-        }
-        >span{
-          color: #478DE3;
-        }
-      }
-    }
-    .el-submenu__title{
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      line-height: 1.4;
-      height: auto;
-      >i{
-        color: #BBC1CD;
-        &.iconfont{
-          font-size: 22px;
-        }
-      }
-      >span{
-        width: auto !important;
-        height: auto !important;
-        overflow: auto !important;
-        visibility: visible !important;
-        font-size: 12px;
-      }
-    }
-  }
-  .main {
-    min-width: 1000px;
-    position: relative;
-    height: 100%;
-    .nav{
-      height: 40px;
-      background-color: @color-blue;
-      color: @color-white;
-      display: flex;
-      align-items: center;
-      position: relative;
-      >img{
-        margin-left: @margin-15;
-      }
-      .navbar{
-        position: absolute;
-        top: 50%;
-        right: 20px;
-        transform:translateY(-50%);
+    .search-bar-other{
         display: flex;
-        >li{
-          padding-right: @margin-15;
-          &:last-of-type{
-            padding: 0;
-          }
-        }
-      }
-    }
-    .container {
-      display: flex;
-      position: absolute;
-      top: 40px;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      .slider{
-        /*max-width: 160px;*/
-        border-right: 1px solid @border-e6;
+        align-items: center;
+        justify-content: center;
+        padding: 0 16px;
+        height: 60px;
+        background-color: @bg-white;
         position: relative;
-        /deep/ .el-menu{
-          border: 0px;
-        }
-        &.collapse-on{
-          width:160px;
-           .el-submenu{
-             /deep/.el-submenu__title{
-               >i{
-                 color: #BBC1CD;
-                 &:first-of-type{
-                   font-size: 22px;
-                 }
-               }
+        >p{
+            position: absolute;
+            top: 50%;
+            left: 16px;
+            transform: translateY(-50%);
+            span{
+                margin-right: 20px;
             }
-          }
         }
-        &-bar-control{
-          width: 56px;
-          height: 17px;
-          position: absolute;
-          right: -36px;
-          top: 50%;
-          transform: translateY(-50%) rotate(270deg);
-          margin-left: -28px;
-          z-index: 9;
-          background: url(.././assets/img/icon-dowm.png) no-repeat center center;
-          background-size: 56px auto;
-          cursor: pointer;
+        >span {
+            font-size: @font-18;
         }
-      }
-      /deep/ .page-view{
-        flex: 1;
-        overflow-x: auto;
-        position: relative;
-        background-color: @bg-grey;
-        &-index{
-          height: 40px;
-          margin: 0 20px;
-          position: relative;
-          >ul{
+        >div {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: @text-green!important;
+        }
+    }
+    .footer-tabs{
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        z-index: 99;
+        background-color: @bg-white;
+        ul{
             height: 100%;
             display: flex;
             align-items: center;
+            justify-content: center;
             >li{
-              position: relative;
-              margin-right: 10px;
-              color: @color-99A;
-              cursor: pointer;
-              &:after{
-                content:'>';
-                margin-left: 10px;
-                /*width: 40px;
-                height: 40px;*/
-              }
-              &:last-of-type{
-                color: @color-324;
-                &:after{
-                  content:'';
-                  margin: 0;
+                flex: 1;
+                text-align: center;
+                align-self: center;
+                height: 100%;
+                box-sizing: border-box;
+                padding-top: 8px;
+                i{
+                    font-size: 24px;
                 }
-              }
-            }
-          }
-          .operation{
-            position: absolute;
-            top: 50%;
-            right: 0;
-            transform:translateY(-50%);
-            display: flex;
-            align-items: center;
-            background-color: @bg-white;
-            padding: @margin-base @margin-base @margin-base 0;
-            border-radius: 4px;
-          }
-        }
-        &-content{
-          // padding: 0px @margin-15;
-          position: absolute;
-          top: 40px;
-          right: @margin-15;
-          bottom: 0;
-          left: @margin-15;
-          // overflow-y: auto;
-          &::before{
-              content: '';
-              position: absolute;
-              left: 0;
-              top:0;
-              bottom: 0;
-              right: 0;
-              background-color:  @bg-white;
-            }
-          .theader-bg{
-            >th{
-              background-color: @bg-th;
-              >.cell{
-                white-space: nowrap;
-              }
-            }
-          }
-          .el-table{
-            font-size: @size-base;
-            th,td{
-              padding: @margin-base 0;
-              >.cell{
-                // white-space: nowrap;
-                .span-cursor{
-                  color: @color-blue;
-                  cursor: pointer;
+                &.active{
+                    color: @text-green;
                 }
-              }
+                >p{
+                    font-size: 12px;
+                }
             }
-            .el-table__body-wrapper{
-              /*overflow-y: scroll;*/
-            }
-            // &.info-scrollbar{
-            //   margin-bottom: 54px;
-            //   .el-table__body-wrapper{
-            //     margin-bottom: -17px;
-            //   }
-            //   .el-table__fixed-right{
-            //     padding-bottom: 17px;
-            //   }
-            // }
-          }
-          .router-view{
-            // min-height: 100%;
-            background-color: @bg-white;
-            position: relative;
-            // z-index: 1;
-          }
         }
-      }
     }
-  }
-  /deep/ .pagination-info{
-    text-align: right;
-  }
-  /deep/ .el-table__empty-block {
-    line-height: 60px;
-  }
-  /deep/ .el-dialog__headerbtn {
-      top: 16px;
-      .el-dialog__close{
-          font-size: 24px;
-          color: #32485F;
-      }
-  }
 </style>
-
